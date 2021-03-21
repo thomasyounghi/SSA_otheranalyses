@@ -1,0 +1,497 @@
+---
+title: "Cluster Analysis of Single Cell SSA Trajectories"
+output: html_notebook
+---
+
+In this addendum analyses, I cluster single cell RFP fluorescence measurements among yeast cells from a study that measured how a specific DNA repair pathway changes with replicative age. That study found that a specific DNA repair pathway called SSA declines in efficiency from 90% to about 70% when comparing young (< 5 generation old) and older (~18 generation old) cells. I subsequently showed that this decline in efficiency was linked to changes in cell cycle progression in older cells. 
+
+### What kind of data was collected in the previous study? 
+In the previous study, the fluorescence of individual old and young yeast cells were measured over time. During that time period a double strand break was induced a single cassette in the genome, and repair was measured using a fluorescent YFP reporter that was designed to be produced if SSA occurred . Production of YFP signal after its absence was used to assess whether SSA repair occurred.
+
+The repair cassette also contained a RFP expression sequence directly adjacent to the cut site. Cutting of the cassette would be expected to halt production of RFP mRNA. Dilution of existing RFP by cell growth would result in a decline in RFP fluorescence. Permanent loss of the RFP gene by SSA, other repair pathways, or lack of repair combined with dilution would eventually cause fluorescence to decline to background levels. Therefore, drops in RFP fluorescence can be a potential reporter for cutting of the repair cassette and/or repair.
+
+Cell division provides a third important piece of information about the cells in the study. Cells typically arrest their cell cycle in response to DNA double-strand breaks. A halt in cell division can provide potential evidence of DNA damage induced cell cycle arrest. Cell division also typically slows down as cells reach the end of their replicative lifespan, so a slow down can provide evidence that cell's are indeed old.  Finally cell division events provide important context for the YFP and RFP signal. Rapidly dividing cells would be expected to have a lower YFP and RFP signals, for the same rate of YFP and RFP protein production.  In this study, cell division was measured by the time of appearance of daughter buds in each cell.
+
+Looking at measurements of YFP, RFP, and cell division in individual cells could provide valuable insight into the dynamics of repair.  The timing of YFP production could indicate the speed of repair or expression following repair. The timing of RFP loss, accounting for cell division, could indicate the timing of cutting of the cassette. The previous study already showed that changes in cell division with age drive changes in SSA repair efficiency (fraction of cells that are able to repair). Due to their potential to provide insight into DNA repair for the cells in the experiment, it makes sense to pursue a a thorough investigation of the single cell measurement trajectories.
+
+### Why cluster the RFP trajectories?
+Clustering can reveal general patterns of behavior for the reporters in single cells. Knowing whether there are clusters of cells with similar trajectories helps in the development of hypotheses about what factors explain these similarities. Comparing the fractions of cells in clusters between strains with different genetic modifications, can provide a fuller picture of how the reporter behaves differently in different strains. Lastly, clusters can be used as a rough check for whether the reporters behave as expected. Due to their high variability and the difficulty of inspecting them by eye, the analysis of RLS trajectories would benefit most from a cluster based analysis. With YFP trajectories it is already easy enough to distinguish cells based on when they go from being YFP negative to YFP positive.
+
+Of course, the identification of clusters of single cell reporter trajectories is only a first step in making sense of the reporter measurements. For example the average trajectory for a cluster can still differ in important ways from any individual trajectory in the cluster. For an individual cell, there can be useful information in addition to cluster membership. Specific aspects of the trajectory (like when YFP appears) are also relevant to understanding how repair changes in cells as they age. These will be explored in a separate notebook.
+
+### What specific types of analyses does this notebook contain?
+1. Visualizations of single cell RFP traces over time
+2. Averages within strain of single cell RFP traces over time.
+3. Clustering of cells based on RFP trajectories. Comparison of the cluster makeup of different strains.
+
+### Initial expectations
+Measurements are taken from cohorts of cells from different strains and age groups. Each cohort was subject to the same experimental protocol of double strand break induction.
+
+In the original study, the effect of different genetic modifications on the repair fraction (YFP-based) were tested. The strains are described below:
+
+SSA: the normal YFP, RFP reporter.
+
+SSA Dnl4ko: same as SSA, but with the Dnl4 gene deleted. This is a DNA ligase involved in a competing DNA repair pathway called NHEJ. If this occurs, SSA will not occur.  
+
+SSA3xCln2: same as SSA, but with 3 copies of the cyclin Cln2. Increased Cln2 expression shortens the G1 duration of cells. The strain was used to assess whether shortening G1 duration in old cells could reverse the decline in SSA repair efficiency with age.
+
+SSAcontrol: the normal YFP, RFP reporter, but lacking a cutsite. This strain was used to assess the behavior of the YFP and RFP reporters in the absence of double strand break induction.
+
+SSAhet: same as SSA, but with single base pair mutations introduced into the flanking DNA repeats used to produce YFP. With these mutations, SSA repair still produces functional YFP. But SSA repair is less likely to be succesfull due to a process called heteroduplex rejection. This strain was used to assess whether heteroduplex rejection changes with age.
+
+My expectations are as follows:
+1. RFP is expected to decline in cells with an inducible double strand break (all strains except SSAcontrol) due to the halt in RFP protein production, and dilution of existing RFP.
+
+2. Prior to induction of double strand breaks, RFP expression is expected to be similar across all strains, since the RFP cassette is identical.  
+
+
+```{r}
+#Loading packages, importing data
+setwd('/Users/thomasyoung/Dropbox/MovieProcessing/SSA_OtherAnalyses/')
+source('./functions/timeseries_func.Rd')
+source('./functions/func.Rd')
+source('./functions/Preprocessing_func.Rd')
+
+
+library(dplyr)
+library(cowplot)
+library(reshape2)
+library(grid)
+library(gridExtra)
+library(ggplot2)
+
+fontsizes =  theme(plot.title=element_text(size=9),strip.text=element_text(size=4))
+xtimescale = scale_x_continuous(name='Time (h)',breaks = c(1,11,21),labels = c(0,5,10))
+
+datafolder = './addendum_data/'
+dsfolder = './dsfolder/'
+rfp = read.csv('./CombinedData/rfpcells_offatdox_alive5hafter.csv')
+yfp = read.csv('./CombinedData/yfpcells_offatdox_alive5hafter.csv')
+info = read.csv('./CombinedData/info_offatdox_alive5hafter.csv')
+```
+
+The data consists of cells that start off YFP negative.  This restriction is needed to exclude RFP- cells, since these tend to be YFP positive. This notebook is only concerned about the trajectories of RFP positive cells.
+
+```{r}
+#Selecting cells of strains to look at
+tokeep = info$strain=='yTY133' | info$strain=='yTY126' | info$strain=='yTY125' | info$strain =='yTY149' | info$strain =='yTY161a' 
+rfp = rfp[tokeep,]
+yfp = yfp[tokeep,]
+info = info[tokeep,]
+info$replabel = as.factor(info$replabel)
+rfp$replabel = as.factor(rfp$replabel)
+yfp$replabel = as.factor(yfp$replabel)
+```
+
+```{r}
+#Combining budding time measurements (bt) with yfp and rfp fluorescence measurements
+rfpm = melt(rfp,id.vars=c('id','date','xy','trap','replabel'),measure.vars = 6:ncol(rfp),variable.name='fltime')
+yfpm = melt(yfp,id.vars=c('id','date','xy','trap','replabel'),measure.vars = 6:ncol(rfp),variable.name='fltime')
+colnames(rfpm)[7] = 'rfp'
+colnames(yfpm)[7] = 'yfp'
+annot = select(info,c('id','expstrain','expage','ageatdox','replabel'))
+flm = inner_join(rfpm,annot)
+flm = inner_join(flm,yfpm)
+flm$fltime = as.numeric(flm$fltime)
+
+#How does rfp look like within cell cycles
+#For each rfp trace, split the trace into budding intervals
+#For each cell, we dividetimes according to what budding interval they are contained in
+bt = cbind(info$id, info$lastibeforepart2 + 1,getbudtimes(info))
+colnames(bt)[1:2] = c('id','firstfli')
+btm = melt(bt,id.vars = c('id','firstfli'),measure.vars = 3:ncol(bt),value.var='bt')
+colnames(btm)[3:4]=c('bud','time')
+btm$bud = as.numeric(btm$bud)
+btm$fltime = lastflindexbefore(btm$time,3,btm$firstfli)
+
+#For each fltime between those for budi and budi+1, assign i as the budding interval
+assignbi <- function(meltedbt){
+  bis = c()
+  firstflibi = c()
+  for(i in 1:35){
+    #find the last bud to occur prior to the fltime
+    rowiofbi = rev(which(meltedbt$fltime < i))[1]
+    bi = meltedbt$bud[rowiofbi]
+    fli = meltedbt$fltime[rowiofbi]
+    bis = c(bis,bi)
+    firstflibi = c(firstflibi,fli)
+  }
+  fltime = 1:35
+  id = meltedbt$id[1]
+  bi = bis
+  return(data.frame(id,fltime,bi,firstflibi))
+}
+
+#data frame containing the budding interval for each fluorescent index for each cell
+btm1 = btm %>% group_by(id) %>% do(assignbi(.))
+btm1 = data.frame(id=btm1$id,fltime=btm1$fltime,bi=btm1$bi,firstflibi=btm1$firstflibi)
+flm = inner_join(flm,btm1)
+flm = filter(flm,!is.na(rfp) & !is.na(yfp))
+flm = mutate(flm,bipostdox = bi - ageatdox)
+
+#Only limit ourselves to prior to the 25th fluorsecent measurement
+flm = filter(flm,fltime < 25)
+```
+
+Let's start of by taking a look at individual RFP trajectories for the different age groups and strains.
+
+```{r}
+#Plotting individual cell trajectories, a random sample
+#rfp
+idstosample = sample(info$id,nrow(info)/10)
+p1 = ggplot(filter(flm,id%in%idstosample),aes(fltime,rfp)) + geom_point(aes(colour=replabel),size=0.1) + geom_line(aes(group=id),size=0.1) + facet_grid(expage~expstrain) + fontsizes + xtimescale
+p1
+```
+
+There are clearly manytypes of RFP trajectories among the individual cells. 
+
+### Visualizing averages of RFP trajectories for each time point for each strain, age combination.
+
+The plots can be used to eyeball how the strains and age group affect the average value of a reporter at any given time. While the average trajectory can be misleading given what is known about single cell trajectories, it can be helpful as a summary and provide a sense of the timing of changes in the reporters across the population of cells.
+
+First, look at the average of RFP at each time point, grouped by strain and age:
+```{r,fig.height = 1, out.height="90%"}
+
+flms = flm %>% group_by(expstrain,expage,fltime) %>% summarize(meanrfp = mean(rfp,na.rm=TRUE),sdrfp = sd(rfp,na.rm=TRUE),count=n(),meanbi = mean(bi,na.rm=TRUE),sdbi=sd(bi,na.rm=TRUE),meanyfp=mean(yfp,na.rm=TRUE),sdyfp=sd(yfp,na.rm=TRUE))
+flms = mutate(flms,semrfp = sdrfp/sqrt(count),sembi = sdbi/sqrt(count),semyfp=sdyfp/sqrt(count))
+flms = filter(flms, count > 20)
+p1 = ggplot(flms,aes(fltime,meanrfp)) + geom_line(aes(colour=expage),size=0.1) + geom_point(size=0.1) + geom_errorbar(aes(ymin = meanrfp-semrfp,ymax=meanrfp+semrfp,colour=expage)) +facet_grid(.~expstrain) + fontsizes + xtimescale + coord_fixed(ratio=0.1)
+p1
+
+```
+In all strains except the SSAcontrol strain there is a steady decline in average RFP starting at roughly the 6 hour time point. This is consistent with the nature of the reporter - when there is a double strand break in the SSA reporter, RFP cannot be transcribed. If SSA repair occurs, the RFP is lost. In the SSAcontrol strain, the double strand break cannot be induced, so RFP cannot be lost.
+
+Prior to induction of the double strand break (t < 2 hours) old cells also have higher RFP expression than young cells across most strains. This could be due to effect of age on RFP production, or RFP dilution.
+
+Prior to induction of the double strand break, different strains also differ in the level of RFP. The SSAcontrol strain has higher RFP levels on average than the other strains. The SSA 3xCln2 strain has lower RFP levels. 
+
+Given the RFP promoters are identical across strains, the strain to strain differences must be related to other differences. The higher RFP level in the SSAcontrol relative to the SSA strain could only be due to differences in the cutsite sequence. Perhaps the strains with functional cutsites are intermitently cut due to background expression of the cutting enzyme. This could result in pauses in RFP production. 
+
+
+### Clustering Single Cell RFP trajectories
+
+The average trajectories of RFP show differences across strains and ages, without providing a sense of how these reporters are changing in individual cells. To get a rough sense of whether there are groups of cells with similar single cell trajectories, clustering is performed.
+
+Determination of such clusters will be useful in developing an understanding of the scenarios common to groups of cells in the dataset. The question to explore after clusters are identified is what biological differences in cells within a cluster give rise to their similar trajectories.  Also, what biological differences cause cells to be in different clusters?
+
+Ward's method, a hierarchical, agglomerative approach, was used to cluster the trajectories according to their euclidean distances. Since each trajectory was represented as a vector of measurements, a small euclidean distance between two trajectories corresponds to similar measurements at each point in time. The reason for a hierarchical approach was the desire to further group similar clusters of trajectories according to similarity. The hierarchy of cluster relationships could be useful in developing hypotheses to explain the observed clusters.  Ward's method was used because of the sensibility of choosing the clusters to merge at each stage that would minimize the increase in within cluster variance. The variance of trajectories in a cluster about their mean trajectory should be low. 
+
+Due to the desire to assess strain to strain differences across cells of similar ages, clustering was performed separately on the old and young age group. Since different strains likely have different types of RFP behavior, the clustering procedure was applied to each group separately.
+
+```{r}
+#Importing libraries for hierarchical clustering and plotting the tree
+library(dendextend)
+library(tidyr)
+library(ggdendro)
+library(lazyeval)
+
+#spread the yfp and rfp values of the data set
+#function to generate a yfp-rfp-bipostdox matrix
+getspread <- function(melteddf,idcol,valcol,timecol){
+  result <- melteddf %>% select(all_of(c(valcol,timecol,idcol))) %>% drop_na() %>% pivot_wider(names_from = timecol,values_from = valcol,id_cols = idcol,names_sort=TRUE,names_prefix='t')
+  return(as.data.frame(result))
+}
+
+#Creating data frames where role correspond to different cells, columns correspond to different times, values are rfp, yfp, or budding interval
+flmold = filter(flm,expage=='old' & ageatdox >=15) 
+flmyoung = filter(flm,expage=='young')
+```
+Some functions to help in the display of the cluster dendrograms
+```{r}
+
+#Cuts a hclust tree into k clusters and returns the cluster labels
+getclustercuttree <- function(tree,k){
+  clustered <- cutree(tree,k)
+  clusteredtidy <- as.data.frame(as.table(clustered))
+  colnames(clusteredtidy) = c('id','cluster')
+  clusteredtidy$id = strtoi(as.character(clusteredtidy$id))
+  clusteredtidy$cluster = factor(clusteredtidy$cluster)
+  return(clusteredtidy)
+}
+
+#Calculates the within cluster sum of squares and the between cluster sum of squares for various k in hierarchical clustering.
+hclustcutassessment <- function(tree,kmin,kmax,data){
+  betweenvars = c()
+  withinvars = c()
+  overallmean = apply(data,2,mean)
+  for(i in kmin:kmax){
+    labeledids = getclustercuttree(tree,k=i)
+    withinvar=0
+    betweenvar=0
+    for(j in 1:i){
+      clusterlabel = as.character(j)
+      currclust = data[labeledids$cluster==clusterlabel,,drop=FALSE]
+      clustsize = nrow(currclust)
+      clustmean = apply(currclust,2,mean,na.rm=TRUE)
+      colvar = apply(currclust,2,var)
+      colvar[which(is.na(colvar))] = 0
+      clustvar = sum(colvar) * (clustsize-1)
+      withinvar = withinvar+clustvar
+      betweenvar = betweenvar + clustsize * sum((clustmean - overallmean)^2,na.rm=TRUE)
+    }
+    withinvars = c(withinvars,withinvar)
+    betweenvars = c(betweenvars,betweenvar)
+  }
+  numclust = kmin:kmax
+  CHstat = betweenvars/withinvars * (nrow(data)-numclust)/(numclust-1)
+  return(as.data.frame(list(withinvar = withinvars,betweenvar = betweenvars,numclust = kmin:kmax,CHstat = CHstat)))
+}
+
+#Use the labels returned by cuttree to color the leaves of the corresponding dendrogram with the appropriate color
+#Returns the dendrogram class with appropriate color labels
+#Also returns the list of colors used to assign each numeric cluster label a color.
+colordendroleaves <- function(hclustobj,clusterlab,leaflwd){
+    dendro <- as.dendrogram(hclustobj) %>% set("labels",rep("",length(clusterlab)))%>% set("branches_lwd",1.2)
+    colormap = c("red","orange","blue","brown","magenta")
+    colors = colormap[strtoi(clusterlab)[order.dendrogram(dendro)]]
+    dendro <- assign_values_to_leaves_edgePar(dend=dendro, value = colors, edgePar = "col")
+    dendro <- assign_values_to_leaves_edgePar(dend=dendro, value = leaflwd, edgePar = "lwd")
+    result = list(dendro,colormap)
+    names(result) = c("dendro","colormap")
+    return(result)
+}
+
+#For each experiment + age combination, calculate the fraction of cells in each cluster
+getfracincluster <- function(clusterdf){
+    annotated = info %>% select(expage,expstrain,id) %>% inner_join(clusterdf,by='id')
+    grouped = annotated %>% group_by(expage,expstrain,cluster) %>% summarize(numcells = n_distinct(id))
+    grouped1 <- grouped %>% group_by(expage,expstrain) %>% mutate(frac = numcells/sum(numcells))
+    return(grouped1)
+}
+
+
+#Calculate the sd and mean of the given variable at each time point for the given cluster
+getclustermeansdvstime <- function(clusterdf,longdata,valcol){
+    annotated = longdata %>% select(expage,id,fltime,valcol) %>% inner_join(clusterdf,by='id')
+    summ = annotated %>% group_by(expage,cluster,fltime) %>% summarise_(avg = interp(~mean(v,na.rm=TRUE),v=as.name(valcol)),sd = interp(~sd(v,na.rm=TRUE),v=as.name(valcol)))
+    return(summ)
+}
+```
+
+```{r}
+#Returns a ggplot object containing CH-index values when different numbers of clusters are considered
+#Specify the strain name to look at, the data used for clustering in long format, the idvar distinguishing different individuals form one another, the valvar specifying the column containing the measurements to cluster, the colvar specifying when the column containing the indices of each measurement for a given individual, the mink and maxk number of clusters to consider
+getCHplot <- function(strainname, longdata, idvar,valvar,colvar,mink,maxk) {
+  longdata <- longdata %>% filter(expstrain==strainname)
+  widesubset = getspread(longdata,idvar,valvar,colvar)
+  rownames(widesubset) = widesubset$id
+  widesubset <- widesubset %>% select(-c('id'))
+  
+  widesubset <- widesubset[apply(is.na(widesubset),1,sum) == 0,]
+  dists <- dist(widesubset,method="euclidean")
+  hclustfit <- hclust(dists,method="ward.D")
+
+  hclustsumm = hclustcutassessment(hclustfit,mink,maxk,widesubset)
+  ggplot(hclustsumm,aes(numclust,CHstat)) + geom_line() + geom_point() +   ggtitle(strainname) + fontsizes
+  
+}
+
+
+```
+
+
+```{r}
+#Returns a ggplot object that plots the mean+/-sd of measurements within each cluster over time.
+#Specify the strain name to look at, the data used for clustering in long format, the idvar distinguishing different individuals form one another, the valvar specifying the column containing the measurements to cluster, the colvar specifying when the column containing the indices of each measurement for a given individual, the mink and maxk number of clusters to consider
+getclustermeansdplot <- function(strainname, longdata, idvar,valvar,colvar,k){
+
+  flongdata <- longdata %>% filter(expstrain==strainname)
+
+  widesubset = getspread(flongdata,idvar,valvar,colvar)
+  
+  rownames(widesubset) = widesubset$id
+  widesubset <- widesubset %>% select(-c('id'))
+  
+  widesubset <- widesubset[apply(is.na(widesubset),1,sum) == 0,]
+
+  dists <- dist(widesubset,method="euclidean")
+  hclustfit <- hclust(dists,method="ward.D")
+  
+  clustered= getclustercuttree(hclustfit,k)
+
+  clustermsdvt = getclustermeansdvstime(clustered,longdata,valvar)
+  
+  #environment option in ggplot - is this necessary?
+  ggplot(clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+scale_colour_manual(values=dendold$colormap) + xtimescale + ggtitle(strainname)
+  
+}
+
+```
+
+
+```{r}
+#Function to generate a summary figure for a given choice of k, the number of clusters
+#output is a list of of figures. The first is the dendrogram, the second shows the mean+/- sd for each cluster, the third shows the fraction of cells in each cluster
+#User supplies the strain to select, and data to cluster in long format, column names specifying 
+#the variables used to group individuals, the values to cluster, and the indices/time for each measurement in the individual, and the number of clusters
+createhclustsummaryfigure <- function(strainname, longdata, idvar,valvar,colvar,k){
+
+  flongdata <- longdata %>% filter(expstrain==strainname)
+  widesubset = getspread(flongdata,idvar,valvar,colvar)
+  rownames(widesubset) = widesubset$id
+  widesubset <- widesubset %>% select(-c('id'))
+  widesubset <- widesubset[apply(is.na(widesubset),1,sum) == 0,]
+
+  dists <- dist(widesubset,method="euclidean")
+  hclustfit <- hclust(dists,method="ward.D")
+  
+  output = vector('list',3)
+  
+  clustered= getclustercuttree(hclustfit,k)
+  dend = colordendroleaves(hclustfit,clustered$cluster,10)
+  ggdend = as.ggdend(dend$dendro)
+
+
+  frac = getfracincluster(clustered)
+
+  clustermsdvt = getclustermeansdvstime(clustered,longdata,valcol)
+
+#Saving the 3 figures
+output[[1]] <- local({
+  ptree = ggplot(ggdend)+ ggtitle(strainname) + fontsizes
+})
+
+output[[2]] <- local({
+  pfrac = ggplot(frac,aes(cluster,frac)) + geom_bar(stat="identity",aes(fill=cluster)) + scale_fill_manual(values=dend$colormap) + fontsizes + ylab("Fraction") + ggtitle(strainname)
+})
+
+output[[3]] <- local({
+  pmsd = ggplot(data=clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+ scale_colour_manual(values=dend$colormap) + xtimescale  + ggtitle(strainname)
+})
+  
+return(output)
+}
+```
+
+A large proportion of cells have missing RFP values at various time points. This can be due to death or an inability to follow the cells  due to overlap with neighbors. In the case for young cells, it can be due to the cells not being born yet. To avoid calculating distances between measurement vectors with missing values, I only cluster cells that lack missing data for the time period under consideration. For young cells, the earliest sensible time is a flindex of 6, cells may be 'born' up to this time. For old cells, the earliest sensible time is an flindex of 1, since cells have already been traped prior to this time point. 20 is a reasonable ending fluorescent index since the fraction of NAs is still only around 0.2 
+
+```{r}
+oldt = getspread(flmold,'id','rfp','fltime') 
+youngt = getspread(flmyoung,'id','rfp','fltime') 
+
+rownames(oldt) = oldt$id
+rownames(youngt) = youngt$id
+oldt = oldt %>% select(-c('id'))
+youngt = youngt %>% select(-c('id'))
+
+
+#count the fraction of missing values for each column
+NAfracold = apply(oldt,2,f<-function(x){mean(is.na(x))})
+NAfracyoung = apply(youngt,2,f<-function(x){mean(is.na(x))})
+plot(NAfracold,type="b",col="red",ylab="Fraction Of Cells with NA",xlab="Fluorescent snapshot index",ylim=c(0,1))
+points(NAfracyoung,type="b",col ='blue')
+legend(x = 1,fill=c("red","blue"),legend=c("old","young"))
+
+```
+
+To distinguish between rfp trajectory differences associated with double strand break induction and those associated with expression prior to double strand break induction, clustering is performed for the time period prior to induction of old cells, and after induction for old cells.
+
+### Clustering cells from all strains based on time 0 to 2.3 hours (Pre-double-strand break induction)
+
+Clustering is based on the vector of 6 measurements between  0 h and 2.3 h (the time between the start of the movie and the start of double-strand break induction)
+
+```{r,out.height = 20,out.width = 40}
+strainnames = c('SSA','SSA Dnl4ko','SSA3xCln2','SSAcontrol','SSAhet')
+CHplots = lapply(strainnames,getCHplot,flm[flm$fltime<=6 & flm$expage =='old',],'id','rfp','fltime',2,6)  
+grid.arrange(grobs = CHplots,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Clustering on times < 2.3 h')
+
+```
+
+```{r}
+strainnames = c('SSA','SSA Dnl4ko','SSA3xCln2','SSAcontrol','SSAhet')
+
+#Without the SIMPLIFY = FALSE, the output is a matrix
+clustermsdplots = mapply(getclustermeansdplot,strainnames,list(flm[flm$fltime<=6 & flm$expage =='old',]),'id','rfp','fltime',c(5,4,3,5,4),SIMPLIFY = FALSE)  
+#
+grid.arrange(grobs = clustermsdplots,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Clustering on times < 2.3 h')
+```
+The means of the clusters identified using Ward's method show little trend over the 2 hour time period prior to double strand break induction. This is not very surprising, given the time period for RFP to change is limited, the RFP can only change via dilution (not degradation), the promoter driving RFP is constitutive, and cells typically take at least 60 minutes to divide.
+
+The mean+/- standard deviation (represented by error bars) for different clusters in the same strain also come close to overlapping for most times. The lack of well separated clusters or distinct cluster dynamics suggests that during the time period prior to double-strand break induction, RFP expression in individual cells is largely stable and spread out across the cells of each strain.
+
+### Clustering old and young cells from all strains based on time 2.3 hours to 9.8 hours (Post-double-strand break induction)
+
+Hierarchical clustering is applied to each strain separately for the vector of 14 measurements between time t=2.3 hours and t=9.8 hours
+```{r}
+#For old cell experiments
+strainnames = c('SSA','SSA Dnl4ko','SSA3xCln2','SSAcontrol','SSAhet')
+CHplotsold = lapply(strainnames,getCHplot,flm[flm$fltime>6   & flm$fltime <=20 & flm$expage =='old',],'id','rfp','fltime',2,6)  
+grid.arrange(grobs = CHplotsold,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Old cells. Clustering on times between 2.3 and 9.8 hours')
+
+#For young cell experiments
+#The SSA3xCln2 doesn't have measurements between fltime = 6 and fltim = 20
+strainnamesyoung = c('SSA','SSA Dnl4ko','SSAcontrol','SSAhet')
+CHplotsyoung = lapply(strainnamesyoung,getCHplot,flm[flm$fltime>6   & flm$fltime <=20 & flm$expage =='young',],'id','rfp','fltime',2,6)  
+grid.arrange(grobs = CHplotsyoung,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Young cells. Clustering on times between 2.3 and 9.8 hours')
+
+```
+Now visualize the mean cluster for each strain and the fraction of cells belonging to each cluster. Here the number of clusters for each age, strain combination is given by the above plots of the CH-index.
+For old cells:
+SSA -> 3 clusters,  
+SSA Dnl4ko -> 2 clusters  
+SSA 3xCln2 -> 3 clusters  
+SSAcontrol -> 3 clusters  
+SSAhet -> 2 clusters  
+
+For young cells:
+SSA -> 2 clusters  
+SSA Dnl4ko -> 3 clusters  
+SSAcontrol -> 2 clusters  
+SSAhet -> 2 clusters  
+
+
+
+```{r}
+strainnames = c('SSA','SSA Dnl4ko','SSA3xCln2','SSAcontrol','SSAhet')
+oldpostfig = mapply(createhclustsummaryfigure,strainnames,list(flm[flm$fltime>6 & flm$fltime<=20 & flm$expage =='old',]),'id','rfp','fltime',c(3,2,3,3,4),SIMPLIFY = FALSE)  
+
+```
+
+
+```{r,fig.height =5, fig.width=2,out.height=300,out.width=40}
+oldpostfig = unlist(oldpostfig,recursive=FALSE)
+lofirstr = c(1,2)
+lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10,lofirstr+13)
+grid.arrange(grobs = oldpostfig[c(2,3,5,6,8,9,11,12,14,15)],layout_matrix = lomat,top = "Old Cells, Clustering of RFP trajectoriess\n after DSB induction (2.3 h - 9.8 h)")
+```
+In all strains with the correct DNA cut site (everything but SSAcontrol), there are clusters whose means show steady declines in RFP.  These clusters differ in terms of when the decline in RFP starts, the RFP expression level within the first 2 hours of the double-strand break induction period, and what happens to RFP prior to the decline.  The clusters with the lowest expression of RFP at the beginning of induction start losing RFP at the 6 hour time point (4 hours after the start of double-strand break induction).  The cluster means with the highest expression of RFP tend to increase in RFP up to the 8 hour time point, after which RFP steadily declines. The only exception was the SSAhet strain, whose second most abundant cluster (~25% of cells) did not show a clear decline in RFP. 
+
+The absence of clusters with declining RFP mean in the SSAcontrol strain, makes sense since this strain cannot be cut upstream of RFP.  If this strain had shown clusters with declining mean RFP, it would call into question whether the declines seen in the cuttable strains were actually due to their ability to be cut in the repair casette.
+```{r}
+
+```
+
+Now, cluster the young cells based on RFP trajectories after double-strand break induction (2.3 to 9.8 hours into the movie)
+```{r}
+strainnames = c('SSA','SSA Dnl4ko','SSAcontrol','SSAhet')
+youngpostfigs = mapply(createhclustsummaryfigure,strainnames,list(flm[flm$fltime>6 & flm$fltime<=20 & flm$expage =='young',]),'id','rfp','fltime',c(2,3,2,2),SIMPLIFY = FALSE)  
+
+```
+
+```{r,fig.height =4, fig.width=2,out.height=300,out.width=40}
+youngpostfigs = unlist(youngpostfigs,recursive=FALSE)
+lofirstr = c(1,2)
+lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10)
+grid.arrange(grobs = youngpostfigs[c(2,3,5,6,8,9,11,12)],layout_matrix = lomat, top = "Young Cells, Clustering of RFP trajectoriess\n after DSB induction (2.3 h - 9.8 h)")
+```
+
+The young cells show largely the same patterns in their cluster means. Cuttable strains have clusters whose means decrease at the 6 to 8 hour time point, and differ in whether RFP increases prior to the decrease.  The non-cuttable SSAcontrol strain has clusters whose mean RFP steadily increases with time.
+
+
+### Conclusions
+In this notebook, hierarchical clustering with Ward's method was applied to single cell RFP trajectories from a study in which RFP was expressed adjacent to an inducible double-strand break cutsite. The goal was to identify patterns of RFP dynamics shared by large groups of cells. Induction of the double strand break was expected to result in RFP reductions in the strains with functional cut-sites (everything but SSAcontrol). It was also expected that prior to induction of the double strand break, the clusters wouldn't differ very much across strains since all had the same RFP reporter.
+
+Clustering on the pre-double-stand break timepoints for old cells revealed highly overlapping clusters without any distinct dynamics or trends. The clusters were distinguished by RFP Expression level (low to high). These results were expected - the promoter driving RFP was chosen in part for its unimodal expression profile.  The time for RFP to change was limited to only 6 hours.  
+
+The pre-double-strand break RFP clusters did illustrate differences in RFP expression between strains however. Notably, the SSAcontrol strain is shifted towards higher RFP expression in its cells, while SSA3xCln2 is shifted towards lower RFP expression. Possible explanations for the higher RFP levels in SSAcontrol cells include 1) lack of intermittent cutting upstream of RFP that would normally reduce RFP transcription and 2) The non-functional cutsite sequence in the SSAcontrol strain is more conducive to transcription.  The lower RFP expression in SSA3xCln2 cells may be related to the faster division times of these cells resulting in faster dilution of RFP. More analysis will be needed to determine why this is the case.
+
+Clustering of RFP trajectories in the post-double-strand break time period revealed the expected dynamics. Cuttable strains have cluster whose means show declining RFP. The non-cuttable SSAcontrol strain has clusters that don't show a decline in RFP. Therefore, the ability for the repair cassette to be cut is associated with a decline in the RFP reporter. 
+
+### Limitations and Future Directions
+While the above cluster analyses confirms some expectations about the RFP reporter and raises new questions, it is not without limitations. The clusters identified by applying Ward's method to the post-double-strand break induction period won't necessarily do a good job of separating the cut cells from un-cut cells. Cells with similar overall expression level will tend to get put together, even if one cell loses RFP and one cell gains RFP. An easy way to see this is to try clustering the cells of all strains combined together. The high expressing RFP cluster of the SSAcontrol strain will be bundled together with the high, but declining RFP clusters of other strain. The resulting cluster average will be skewed towards higher RFP at later time points.
+
+The above example illustrates another important consideration, which is that the average trajectory of cells within a cluster is missing a lot of information about individual trajectories. Interesting changes within individual RFP trajectories will get averaged out by other cells in their cluster.  
+
+Lastly, declines in RFP alone are not the best way to assess halts in RFP production. The cell division context is also important. For example, cells that stop growing but halt RFP production would not show a decline in RFP.  To address this and the other concerns listed above, it will be necessary to further explore the behavior of individual RFP trajectories in the context of cell growth and division.
+
+
