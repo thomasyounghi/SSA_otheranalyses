@@ -20,7 +20,7 @@ Looking at measurements of YFP, RFP, and cell division in individual cells could
 
 ## Description of analyses
 
-SingleCellTrajectories_clustering.Rmd
+SingleCellTrajectories_clustering.Rmd  
 This notebook applies Ward's method to cluster single cell RFP trajectories
 for cells of different strain and age cohorts. It is intended to provide
 a general sense of the types of patterns exhibited by single cell RFP trajectories in different strains
