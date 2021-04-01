@@ -25,3 +25,7 @@ This notebook applies Ward's method to cluster single cell RFP trajectories
 for cells of different strain and age cohorts. It is intended to provide
 a general sense of the types of patterns exhibited by single cell RFP trajectories in different strains
 
+YFP_timetoevent.Rmd  
+This notebook applies techniques from survival analysis (Kaplan Meier curves,
+Cumulative Incidence For Competing Risks, and Cause Specific Hazards) to understand differences in time-to-YFP appearance between strains and age groups.  
+ 
