@@ -1,6 +1,8 @@
 ---
 title: "Cluster Analysis of Single Cell SSA Trajectories"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 In this addendum analyses, I cluster single cell RFP fluorescence measurements among yeast cells from a study that measured how a specific DNA repair pathway changes with replicative age. That study found that a specific DNA repair pathway called SSA declines in efficiency from 90% to about 70% when comparing young (< 5 generation old) and older (~18 generation old) cells. I subsequently showed that this decline in efficiency was linked to changes in cell cycle progression in older cells. 
@@ -57,6 +59,7 @@ library(ggplot2)
 
 fontsizes =  theme(plot.title=element_text(size=9),strip.text=element_text(size=4))
 xtimescale = scale_x_continuous(name='Time (h)',breaks = c(1,11,21),labels = c(0,5,10))
+
 
 datafolder = './addendum_data/'
 dsfolder = './dsfolder/'
@@ -150,7 +153,7 @@ There are clearly manytypes of RFP trajectories among the individual cells.
 The plots can be used to eyeball how the strains and age group affect the average value of a reporter at any given time. While the average trajectory can be misleading given what is known about single cell trajectories, it can be helpful as a summary and provide a sense of the timing of changes in the reporters across the population of cells.
 
 First, look at the average of RFP at each time point, grouped by strain and age:
-```{r,fig.height = 1, out.height="90%"}
+```{r,fig.height = 3, fig.width = 7}
 
 flms = flm %>% group_by(expstrain,expage,fltime) %>% summarize(meanrfp = mean(rfp,na.rm=TRUE),sdrfp = sd(rfp,na.rm=TRUE),count=n(),meanbi = mean(bi,na.rm=TRUE),sdbi=sd(bi,na.rm=TRUE),meanyfp=mean(yfp,na.rm=TRUE),sdyfp=sd(yfp,na.rm=TRUE))
 flms = mutate(flms,semrfp = sdrfp/sqrt(count),sembi = sdbi/sqrt(count),semyfp=sdyfp/sqrt(count))
@@ -159,6 +162,7 @@ p1 = ggplot(flms,aes(fltime,meanrfp)) + geom_line(aes(colour=expage),size=0.1) +
 p1
 
 ```
+  
 In all strains except the SSAcontrol strain there is a steady decline in average RFP starting at roughly the 6 hour time point. This is consistent with the nature of the reporter - when there is a double strand break in the SSA reporter, RFP cannot be transcribed. If SSA repair occurs, the RFP is lost. In the SSAcontrol strain, the double strand break cannot be induced, so RFP cannot be lost.
 
 Prior to induction of the double strand break (t < 2 hours) old cells also have higher RFP expression than young cells across most strains. This could be due to effect of age on RFP production, or RFP dilution.
@@ -308,11 +312,12 @@ getclustermeansdplot <- function(strainname, longdata, idvar,valvar,colvar,k){
   hclustfit <- hclust(dists,method="ward.D")
   
   clustered= getclustercuttree(hclustfit,k)
-
+  dend = colordendroleaves(hclustfit,clustered$cluster,10)
+  
   clustermsdvt = getclustermeansdvstime(clustered,longdata,valvar)
   
   #environment option in ggplot - is this necessary?
-  ggplot(clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+scale_colour_manual(values=dendold$colormap) + xtimescale + ggtitle(strainname)
+  ggplot(clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+scale_colour_manual(values=dend$colormap)  + ggtitle(strainname) + scale_x_continuous(breaks = seq(1,21,10), labels = seq(0,10,5),limits = c(min(floor(clustermsdvt$fltime/10)*10)-1, max(ceiling(clustermsdvt$fltime/10)*10)+1)) + xlab('Time (h)')
   
 }
 
@@ -344,7 +349,7 @@ createhclustsummaryfigure <- function(strainname, longdata, idvar,valvar,colvar,
 
   frac = getfracincluster(clustered)
 
-  clustermsdvt = getclustermeansdvstime(clustered,longdata,valcol)
+  clustermsdvt = getclustermeansdvstime(clustered,longdata,valvar)
 
 #Saving the 3 figures
 output[[1]] <- local({
@@ -356,7 +361,7 @@ output[[2]] <- local({
 })
 
 output[[3]] <- local({
-  pmsd = ggplot(data=clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+ scale_colour_manual(values=dend$colormap) + xtimescale  + ggtitle(strainname)
+  pmsd = ggplot(data=clustermsdvt,aes(fltime,avg)) + geom_line(aes(group=cluster,colour=cluster)) + geom_point(size=1,aes(colour=cluster)) + geom_errorbar(aes(ymax = avg+sd,ymin=avg-sd,colour=cluster),width = 0.2)+ scale_colour_manual(values=dend$colormap)  + ggtitle(strainname)+ scale_x_continuous(breaks = seq(1,21,10), labels = seq(0,10,5),limits =c(min(floor(clustermsdvt$fltime/10)*10)-1, max(ceiling(clustermsdvt$fltime/10)*10)+1)) + xlab('Time (h)')
 })
   
 return(output)
@@ -405,6 +410,7 @@ clustermsdplots = mapply(getclustermeansdplot,strainnames,list(flm[flm$fltime<=6
 #
 grid.arrange(grobs = clustermsdplots,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Clustering on times < 2.3 h')
 ```
+  
 The means of the clusters identified using Ward's method show little trend over the 2 hour time period prior to double strand break induction. This is not very surprising, given the time period for RFP to change is limited, the RFP can only change via dilution (not degradation), the promoter driving RFP is constitutive, and cells typically take at least 60 minutes to divide.
 
 The mean+/- standard deviation (represented by error bars) for different clusters in the same strain also come close to overlapping for most times. The lack of well separated clusters or distinct cluster dynamics suggests that during the time period prior to double-strand break induction, RFP expression in individual cells is largely stable and spread out across the cells of each strain.
@@ -425,6 +431,7 @@ CHplotsyoung = lapply(strainnamesyoung,getCHplot,flm[flm$fltime>6   & flm$fltime
 grid.arrange(grobs = CHplotsyoung,layout_matrix = rbind(c(1,2,3),c(4,5,NA)),top = 'CH-index vs number of clusters. Young cells. Clustering on times between 2.3 and 9.8 hours')
 
 ```
+  
 Now visualize the mean cluster for each strain and the fraction of cells belonging to each cluster. Here the number of clusters for each age, strain combination is given by the above plots of the CH-index.
 For old cells:
 SSA -> 3 clusters,  
@@ -448,12 +455,21 @@ oldpostfig = mapply(createhclustsummaryfigure,strainnames,list(flm[flm$fltime>6 
 ```
 
 
-```{r,fig.height =5, fig.width=2,out.height=300,out.width=40}
+```{r,fig.width=7,fig.height = 3}
+
+
 oldpostfig = unlist(oldpostfig,recursive=FALSE)
-lofirstr = c(1,2)
-lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10,lofirstr+13)
-grid.arrange(grobs = oldpostfig[c(2,3,5,6,8,9,11,12,14,15)],layout_matrix = lomat,top = "Old Cells, Clustering of RFP trajectoriess\n after DSB induction (2.3 h - 9.8 h)")
+#lofirstr = c(1,2)
+#lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10,lofirstr+13)
+#grid.arrange(grobs = oldpostfig[c(2,3,5,6,8,9,11,12,14,15)],layout_matrix = lomat,top = "Old Cells, Clustering of RFP trajectories\n after DSB induction (2.3 h - 9.8 h)")
+grid.arrange(grobs = oldpostfig[c(2,3)],ncol=2)
+grid.arrange(grobs = oldpostfig[c(5,6)],ncol=2)
+grid.arrange(grobs = oldpostfig[c(8,9)],ncol=2)
+grid.arrange(grobs = oldpostfig[c(11,12)],ncol=2)
+grid.arrange(grobs = oldpostfig[c(14,15)],ncol=2)
+
 ```
+  
 In all strains with the correct DNA cut site (everything but SSAcontrol), there are clusters whose means show steady declines in RFP.  These clusters differ in terms of when the decline in RFP starts, the RFP expression level within the first 2 hours of the double-strand break induction period, and what happens to RFP prior to the decline.  The clusters with the lowest expression of RFP at the beginning of induction start losing RFP at the 6 hour time point (4 hours after the start of double-strand break induction).  The cluster means with the highest expression of RFP tend to increase in RFP up to the 8 hour time point, after which RFP steadily declines. The only exception was the SSAhet strain, whose second most abundant cluster (~25% of cells) did not show a clear decline in RFP. 
 
 The absence of clusters with declining RFP mean in the SSAcontrol strain, makes sense since this strain cannot be cut upstream of RFP.  If this strain had shown clusters with declining mean RFP, it would call into question whether the declines seen in the cuttable strains were actually due to their ability to be cut in the repair casette.
@@ -468,13 +484,17 @@ youngpostfigs = mapply(createhclustsummaryfigure,strainnames,list(flm[flm$fltime
 
 ```
 
-```{r,fig.height =4, fig.width=2,out.height=300,out.width=40}
+```{r,fig.height =3, fig.width=7}
 youngpostfigs = unlist(youngpostfigs,recursive=FALSE)
-lofirstr = c(1,2)
-lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10)
-grid.arrange(grobs = youngpostfigs[c(2,3,5,6,8,9,11,12)],layout_matrix = lomat, top = "Young Cells, Clustering of RFP trajectoriess\n after DSB induction (2.3 h - 9.8 h)")
+#lofirstr = c(1,2)
+#lomat = rbind(lofirstr+1,lofirstr+4,lofirstr+7,lofirstr+10)
+#grid.arrange(grobs = youngpostfigs[c(2,3,5,6,8,9,11,12)],layout_matrix = lomat, top = "Young Cells, Clustering of RFP trajectoriess\n after DSB induction (2.3 h - 9.8 h)")
+grid.arrange(grobs = youngpostfigs[c(2,3)],ncol=2 )
+grid.arrange(grobs = youngpostfigs[c(5,6)],ncol=2 )
+grid.arrange(grobs = youngpostfigs[c(8,9)],ncol=2 )
+grid.arrange(grobs = youngpostfigs[c(11,12)],ncol=2 )
 ```
-
+  
 The young cells show largely the same patterns in their cluster means. Cuttable strains have clusters whose means decrease at the 6 to 8 hour time point, and differ in whether RFP increases prior to the decrease.  The non-cuttable SSAcontrol strain has clusters whose mean RFP steadily increases with time.
 
 
