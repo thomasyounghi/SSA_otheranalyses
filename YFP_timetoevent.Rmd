@@ -10,33 +10,40 @@ In the study this notebook is based on, the ability to repair a single induced d
 1) How the speed of double strand break induction, SSA repair and subsequent YFP expression differs between old and young cells of the same strain. 
 2) How the speed of double strand break induction, SSA repair, and subsequent YFP expression differs between cells of different strains.
 
-These questions were previously addressed by first selecting cells were observed alive at a fixed time point, and comparing the fraction of cells that had became YFP positive at the time point. However, techniques from survival analysis provide another powerful way to answer these questions. One advantage of these techniques is the ability to estimate the time-to-event distribution for YFP appearance, not just for those cells that survived up to a fixed time point. Secondly, survival analysis techniques have built in ways to account for censoring. In the experiments, cells were censored due to death (bursting), the inability to follow them at later time points due to crowding from neighbors, and a limited maximal follow-up time.  Thirdly, regression approaches to survival analysis allow for quantification of the effects of strain, age, and other variables on the time to YFP expression.
+These questions were previously addressed by first selecting cells were observed alive at a fixed time point, and comparing the fraction of cells that had became YFP positive at the time point. However, techniques from survival analysis provide another powerful way to answer these questions. One advantage of these techniques is the ability to estimate the time-to-event distribution for YFP appearance, not just for those cells that survived up to a fixed time point. Secondly, survival analysis techniques have built in ways to account for censoring. In the experiments, cells were censored due to death (bursting), the inability to follow them at later time points due to crowding from neighbors, and a limited maximal follow-up time.  Lastly, regression approaches to survival analysis allow for quantification of the effects of strain, age, and other variables on the time to YFP expression.
 
 
 ### Two views of the YFP time-to-appearance data
 
 The cells in each experiment can be viewed as follows:
   a) a mixture of cells which can be repaired and cannot be repaired, where the cells that can be repaired have a survival distribution that we want to estimate
-  b) a single population of cells with the same survival distribution. The cells for which repair is not observed would be repaired if they are immortal and could be followed for an infinite amount of time. This is impossible though, since cells will die before these repair events can happen
+  b) a single population of cells where all cells can eventually be repaired. The cells for which repair is not observed would eventually be repaired if they didn't die or experience censoring prior to repair detection.
   
-In the first scenario, different strains have different fractions of cells that can be repaired by SSA. The way that heteroduplex rejection is described in the literature(SSAhet) is more consistent with this first scenario; if cells reject the SSA repair template they will never pursue SSA and never produce YFP.
+In the first scenario, different strains have different fractions of cells that can be repaired by SSA.  The way that heteroduplex rejection is described in the literature(SSAhet) is more consistent with this first scenario; if cells reject the SSA repair template they will never pursue SSA and never produce YFP.
 
-In the second scenario, different strains have the same fraction of cells that will eventually be repaired - but some strains repair faster. With the example of heteroduplex rejection (SSAhet), the reason there are fewer cells of the SSAhet strain is because SSA repair is very slow in these cells. We just don't see repair happen because we cannot wait forever - cells will die before then.
+In the second scenario, different strains have the same fraction of cells that will eventually be repaired - but some strains repair faster. Applying this example to the case  of heteroduplex rejection (SSAhet), the reason there are fewer repaired cells of the SSAhet strain at a given point in time is because SSA repair is very slow in these cells. 
 
-These two views affect the consideration of which cells will be used to estimate the survival function. If only a fraction of cells can be repaired, it makes sense to consider the time to repair for only those cells that can be repaired.  In this case only consider time-to-YFP appearance for cells in which YFP is observed to appear. If instead we think that all cells can be repaired, but we can't observe the later repair times,  it would make sense to consider the time to repair for all cells, including those that are still YFP negative at the end of follow-up.
+These two views affect the consideration of which cells will be used to estimate the survival function or P(time to repair > T). If only a fraction of cells can be repaired, it makes sense to consider the time to repair for only those cells that can be repaired.  We cannot talk about time-to-repair for cells that have no possibility of repair. The fraction of repairable cells is a separate quality of each strain. Different strains and age groups can differ in these two aspects.  One common-sense way to determine which cells are repairable is to observe when the fraction of repair levels of for a significant period. The cells that fail to repair over a long period may be considered unrepairable.
+
+If instead we think that all cells can be repaired, but we can't observe the later repair times, it would make sense to consider the time to repair for all cells, including those that are still YFP negative at the end of a long follow-up time. In this case we only think of the time-to-YFP repair distribution over all tracked cells.
+
+Since cell death by bursting and right censorship due to crowarding are inevitable in the old age group, it is difficult to distinguish between the two possibilities. Therefore, I analyze the data from both perspectives.
 
 ### The data
-Cells were aged and recorded in a movie (part 1) prior to starting a fluorescent movie (part 2) to measure the timing of repair. In both movies, non-fluorescent images were taken at 10 minute intervals to record cell division times.   For the 'young' cell experiments, cells were aged for 27*10/60 = 4.5 h in part 1. For the 'old' cell experiments, cells were aged for 153*10/60 = 25.5 h in part 1. To induce the site specific double strand breaks, a drug containing media was added cells for 4 hours starting at 2.5 hours into the fluorescent movie. The drug induces expression of a protein that recognizes a single DNA cut site in the repair casette.
+Cells were aged and recorded in a movie (part 1) prior to starting a fluorescent movie (part 2) to measure the timing of repair. In both movies, non-fluorescent images were taken at 10 minute intervals to record cell division times.   For the 'young' cell experiments, cells were aged for 27*10/60 = 4.5 h in part 1. For the 'old' cell experiments, cells were aged for 153*10/60 = 25.5 h in part 1. To induce the site specific double strand breaks, a drug-containing media was added cells for 4 hours starting at 2.5 hours into the fluorescent movie. The drug induces expression of a protein that recognizes a single DNA cut site in the repair casette.
 
-Prior to assessing changes in YFP fluorescence, the non-fluorescent channels of part1 and part2 were joined in order. For each cell born within the first 500 minutes of the combined movie, each budding event was recorded over time. For the young movies, budding events were recorded up to the 1430 min = 23.8 h of the combined movie.  For the old movies, budding events were recorded up to the 2730 min =  45.5 hour of the combined movie. If a cell exhibited a burst phenotype and stopped dividing prior to these time points, the time of occurence was recorded. If a cell was unfollowable due to buildup of neighboring cells, the time of occurrence was also recorded. These event times were all recorded with the 10 minute interval index.
+Prior to assessing changes in YFP fluorescence, the non-fluorescent channels of part1 and part2 were joined in order. For each cell born within the first 500 minutes of the combined movie, each budding event was recorded over time. For the young movies, budding events were recorded up to the 1430 min = 23.8 h of the combined movie. For the old movies, budding events were recorded up to the 2730 min =  45.5 hour of the combined movie. If a cell exhibited a burst phenotype and stopped dividing prior to these time points, the time of occurence was recorded. If a cell was unfollowable due to buildup of neighboring cells, the time of occurrence was also recorded. These event times were all recorded with the 10 minute interval index.
 
 In the fluorescent movie, snapshots of cells were taken at 30 minute intervals.  The YFP of cells were tracked for the first 24 time points. The cells that were not YFP positive by the 24th time point were followed up to the 40th time point.  The last measurement of a cell in a fluorescent movie at which YFP was negative was record in the 'lasttimebelowcutoff' column. Whether YFP went from negative to positive is saved in the 'yfpclass' column.
 
 
 ### Sections
-1. Visualizing the fractions and distribution of censoring events in different experiments.  The distribution and fractions of cell death times are also plotted.
-2. Comparison of Kaplan-Meier survival curves for different strains. These measure the time-to-event distribution for cell death by bursting.
-3. Visualizing cumulative incidence of YFP appearance for cells of different strains.
+1. Visualizing the fractions and distribution of censoring events in different experiments.  The distribution and fractions of cell death times are also plotted.  
+
+2. Comparison of Kaplan-Meier survival curves for different strains. These measure the time-to-event distribution for cell death by bursting. Cell death by bursting is an important type of censoring event for detection of YFP repair. This is because it may be correlated with repair.  
+
+3. Visualizing cumulative incidence of YFP appearance for cells of different strains.  
+
 4. Cause specific hazard modeling of time-to-YFP-appearance using proportional hazards regression. This is applied to either the entire set of cells in each experiment, or only the cells in which repair was observed.
 
 ```{r}
@@ -119,7 +126,7 @@ info$lastofftime = yfp$lastofftime
 
 ### 1. Visualizing the fractions and distribution of censoring and death events in different experiments. 
 
-The lastobservation field can either be 'burst' or 'interference'. If it is 'burst' the cell was observed as having a dead morphology at some time point. If 'interference', it was not possible to continue following the cell due crowding of the field of view, or the end of the pre-chosen observation period was reached.  Every cell was followed until one of these events occured.  The time of at which these events occured is in the lastobservationtime column.
+The lastobservation field can either be 'burst' or 'interference'. If 'burst' the cell was observed as having a dead morphology at some time point. If 'interference', it was not possible to continue following the cell due crowding of the field of view, or the end of the pre-chosen observation period was reached.  Every cell was followed until one of these events occured. The time of at which these events occured is in the lastobservationtime column.
 
 For each strain + age combination, I compute the fraction of followed cells that 1) burst, or 2) where interfered with prior to the end observation period (270 for old cells, and 130 for young cells)
 ```{r}
@@ -150,12 +157,13 @@ p2 = info %>% filter(expage=='young') %>% ggplot(aes(x=lastobservationtime)) + g
 
 grid.arrange(grobs = list(p1,p2),layout_matrix=matrix(c(1,2)))
 ```
-Looking at the fractions of cells that burst, were lost to observation, or were alive at end of followup ('eof'), there are clear differences between the 'young' and 'old' experiments. The fraction of cells that burst during the old followup time ranged from ~15% to ~40% for old cells but was < 10% for young cells.The fraction of cells for which intereference (loss to followup) occured ranged from ~8% to 50% for old cells, but was < 25% for young cells.   
-There were also different fractions of cells that burst or were lost to observation for different strain of the same age. For example old SSA 3xCln2 experiments had less than 10% of interference, while old SSA Dnl4ko had ~50% interference.
+Looking at the fractions of cells that burst, were lost to observation, or were alive at end of followup , there are clear differences between the 'young' and 'old' experiments. The fraction of cells that burst during the old followup time ranged from ~15% to ~40% for old cells but was < 10% for young cells.The fraction of cells for which intereference (loss to followup) occured ranged from ~8% to 50% for old cells, but was < 25% for young cells.  
 
-Interference (loss to observation either prior to or at the end of the followup period), and bursting also had different distributions with respect to times. In the boxplots, the middle 50% of bursting times tended to occur between the 32nd and 38th hour. The interference times were concentrated at later time points because a large proportion of cells made it to the end of the followup time.  The distributions also show variability across different strains of each age group.
+There were also different fractions of cells that burst or were lost to observation for different strain of the same age. For example old SSA 3xCln2 experiments had less than 10% of interference, while old SSA Dnl4ko had ~50% interference.  
 
-Histograms of interference times confirm that in across old experiments and across young experiments, cells were followed to the same maximal time point (> 270 in raw increments for the old cells, and > 140 in raw increments for the young cells).  These correspond to the peaks in the histograms since relatively high fractions of cells were alive at the end of observation. In the remainder of the notebook, when comparing time-to-event data only times less than these maximal times will be used.
+Interference (loss to observation either prior to or at the end of the followup period), and bursting also had different distributions with respect to times. In the boxplots, the middle 50% of bursting times tended to occur between the 32nd and 38th hour. The interference times were concentrated at later time points because a large proportion of cells made it to the end of the followup time.  The distributions also show variability across different strains of each age group.  
+
+Histograms of interference times confirm that in across old experiments and across young experiments, cells were followed to the same maximal time point (> 270 in raw increments for the old cells, and > 140 in raw increments for the young cells). These correspond to the peaks in the histograms since relatively high fractions of cells were alive at the end of observation. In the remainder of the notebook, when comparing time-to-event data only times less than these maximal times will be used.
 
 
 ### 2. Comparison of Kaplan-Meier survival curves for death (bursting) in different age groups and strains.
@@ -164,7 +172,7 @@ Bursting of cells is an important outcome to consider when comparing differences
 
 Kaplan-Meier survival curves are the most popular way of looking at survival distributions. Given t = time to event and T = the x value on the curve, the y-value on a Kaplan-Meier curve is the estimated P(t > T). Kaplan-Meier survival curves also account for censoring, but assume that the censoring is non-informative. Non-informative means that censored outcomes have the same time to event distribution as un-censored outcomes. Below, I compute Kaplan-Meier curves for the time to bursting for each strain + age group in my data.
 
-The time in these curves is measured relative to the time of treatment with the double-strand break inducing drug. The reason for defining this as the time is that the focus of the study is the effect of cell age on the response to the double-strand break. All cells are restricted to be alive at the time of drug addition.
+The time in these curves is measured relative to the time of treatment with the double-strand break inducing drug. The reason for defining this as the time is that the focus of the study is the effect of cell age on the repair of the double-strand break. All cells are restricted to be alive at the time of drug addition.
 
 ```{r}
 library(survival)
@@ -194,35 +202,37 @@ info <- info %>% mutate(timeyfp = if_else(yfpclass == 'turnedon',lastofftime-5,l
 
 ```
 
+```{r}
+#eval(parse("a"))
+```
+
 
 Below, the old and young Kaplan Meier curves are plotted for each strain.  
 ```{r, fig.width = 6, fig.height = 3,out.width = 30, out.height = 20}
-infoold <- info %>% filter(expage =='old')
-infoyoung <- info %>% filter(expage =='young')
 
 #SSAdegcontrol was not measured for the 'young' condition
 strainnames = c('SSA','SSAcontrol','SSA Dnl4ko', 'SSAdeg','SSAhet','SSA3xCln2')
 
-burstkmbyagegrp <- function(strainname){
-  km_fit <- survfit(Surv(timeburst,statusburst)~ expage,data = info[info$expstrain == strainname,])
+eventkmbyagegrp <- function(strainname,info,timevar,statusvar){
+  km_fit <- survfit(Surv(eval(parse(text=timevar)),eval(parse(text=statusvar)))~ expage,data = info[info$expstrain == strainname,])
   p1 = autoplot(km_fit) + xtscale_pgtime + ylim(0,1) + ggtitle(strainname)
 }
 
-burstkmbyagelist = lapply(strainnames,burstkmbyagegrp)
+burstkmbyagelist = lapply(strainnames,eventkmbyagegrp,info,'timeburst','statusburst')
 grid.arrange(grobs = burstkmbyagelist,layout_matrix = rbind(c(1,2,3),c(4,5,6)), top = "Kaplan-Meier Curves for Bursting In Old vs Young Cells of each Strain")
 
 
-burstlgrankpv_byagegrp <- function(strainname){
-  sd <- survdiff(Surv(timeburst,statusburst)~ expage,data = info[info$expstrain == strainname,])
+eventlgrankpv_byagegrp <- function(strainname,info,timevar,statusvar){
+  sd <- survdiff(Surv(eval(parse(text=timevar)),eval(parse(text=statusvar)))~ expage,data = info[info$expstrain == strainname,])
   return(1-pchisq(sd$chisq,length(sd$n)-1))
 }
 
-pvlist = lapply(strainnames,burstlgrankpv_byagegrp)
+pvlist = lapply(strainnames,eventlgrankpv_byagegrp,info,'timeburst','statusburst')
 names(pvlist) = strainnames
 print('logrank p-values comparing old and young time-to-burst survival distributions within each strain')
 pvlist
 ```
-For all strains the old cells survival curves decline faster than the young cell survival curves. This is not surprising since older cells are closer to death than younger cells, and are therefore more prone to bursting over the follow-up time. Applying the log rank test co compare the young and old survival distributions for each strain, the p-values for all strains except SSA 3xCln2 are less than 0.005. The p-value for comparing the young and old SSA3xCln2 distribution was 0.06, but the survival distribution for the young cells is unknown beyond the 14 hour time point.
+For all strains the old cells survival curves decline faster than the young cell survival curves. This is not surprising since older cells are closer to death than younger cells, and are therefore more prone to bursting over the follow-up time. Applying the log rank test co compare the young and old survival distributions for each strain, the p-values for all strains except SSA 3xCln2 are less than 0.005. The p-value for comparing the young and old SSA3xCln2 distribution was 0.06, but the survival distribution for the young cells is unknown beyond the 14 hour time point. 
 
 The different levels of bursting in young and old cohorts should be considered when comparing repair between the cohorts.
 
@@ -230,36 +240,38 @@ In comparing different strains of the same age, it also makes sense to compare t
 ```{r,fig.width = 6, fig.height = 3,out.width = 30, out.height = 20}
 strainnames = c('SSAcontrol','SSA Dnl4ko', 'SSAdeg','SSAhet','SSA3xCln2')
 
-burstkmbystrain <- function(strainname,controlstrainname,agegroup){
-  km_fit <- survfit(Surv(timeburst,statusburst)~ expstrain,data = info[(info$expstrain == strainname | info$expstrain ==controlstrainname) & info$expage == agegroup,])
+eventkmbystrain <- function(strainname,controlstrainname,agegroup,info,timevar,statusvar){
+  km_fit <- survfit(Surv(eval(parse(text=timevar)),eval(parse(text=statusvar)))~ expstrain,data = info[(info$expstrain == strainname | info$expstrain ==controlstrainname) & info$expage == agegroup,])
   p1 = autoplot(km_fit) + xtscale_pgtime + ylim(0,1) + ggtitle(strainname)
 }
 
-burstkmbyagelist = lapply(strainnames,burstkmbystrain,'SSA','old')
+burstkmbyagelist = lapply(strainnames,eventkmbystrain,'SSA','old',info,"timeburst","statusburst")
 grid.arrange(grobs = burstkmbyagelist,layout_matrix = rbind(c(1,2,3),c(4,5,6)),top = 'Kaplan Meier Curves for Bursting (death) by Strain, Old Experiments Only')
 
-burstlgrankpv_bystrain <- function(strainname,controlstrainname,agegroup){
-  sd <- survdiff(Surv(timeburst,statusburst)~ expstrain,data = info[(info$expstrain == strainname | info$expstrain ==controlstrainname) & info$expage == agegroup,])
+eventlgrankpv_bystrain <- function(strainname,controlstrainname,agegroup,info,timevar,statusvar){
+  sd <- survdiff(Surv(eval(parse(text=timevar)),eval(parse(text=statusvar)))~ expstrain,data = info[(info$expstrain == strainname | info$expstrain ==controlstrainname) & info$expage == agegroup,])
   return(1-pchisq(sd$chisq,length(sd$n)-1))
 }
 
 pvlist =
-  lapply(strainnames,burstlgrankpv_bystrain,'SSA','old')
+  lapply(strainnames,eventlgrankpv_bystrain,'SSA','old',info,"timeburst","statusburst")
 names(pvlist) = strainnames
 print('logrank p-values comparing old time-to-burst survival distributions for each strain against SSA')
 pvlist
 ```
-Comparing Kaplan Meier curves for time-to-bursting among old cells, the two strains that appear to have a differenet distribution from the SSA strain are the SSA Dnl4ko strain (log rank p-value = 0.004), and SSA3xCln2 strain (log rank p-value = 0.001). While old SSA strain cells have a 95% CI for P(time to bursting >= 17 hours) ranging from ~0.4 to 0.7, the SSA Dnl4ko strain' as an's CI ranges from ~0.65 to ~0.9. All other strains Kaplan Meier survival curves show a high degree of overlap with the SSA strain. Why the SSA Dnl4ko and SSA3xCln2 strains show a different time-to-bursting distribution is an interesting mystery to investigate.
+Comparing Kaplan-Meier curves for time-to-bursting among old cells, the two strains that appear to have a different distribution from the SSA strain are the SSA Dnl4ko strain (log rank p-value = 0.004), and SSA3xCln2 strain (log rank p-value = 0.001). While old SSA strain cells have a 95% CI for P(time to bursting >= 17 hours) ranging from ~0.4 to 0.7, the SSA Dnl4ko strain's  CI ranges from ~0.65 to ~0.9. All other strains Kaplan-Meier survival curves show a high degree of overlap with the SSA strain. Why the SSA Dnl4ko and SSA3xCln2 strains show a different time-to-bursting distribution is an interesting mystery to investigate.
 
 
 
 ### 3. Comparing the cumulative incidence function for YFP production.  
 
-The next step is to look at how time-to-YFP appearance is affected by age as well as the various genetic modifications in the study. When comparing different cohorts, one complication is different degrees of cell death and censoring. Data from the SSAcontrol strain shows that for old cells, bursting even occurs in the absence of double-strand break induction.
+Next, I look at how time-to-YFP appearance is affected by age as well as the various genetic modifications in the study. When comparing different cohorts, one complication is different degrees of cell death and censoring (see part 1 of the notebook)
 
-The approach used to account for bursting depends on what bursting means in the context of the YFP detection assay. If inability to repair the induced double strand break causes bursting, then increased rates of bursting at the expense of YFP appearance would suggest decreased repair efficiency. If instead, burst cells are unable to induce double-strand breaks, they provide no information about SSA repair efficiency. Since bursting occurs at higher rates in old cells regardless of whether double-strand breaks are induced, it cannot be seen simply as an outcome of the SSA repair assay in the old cells. 
+If bursting prevents observation of repair and not independent of the time-to-repair, it is a competing event. For example, inability to repair the induced double strand break might cause bursting. Alternatively, cells near death (close to bursting) might be less likely to induce the double-strand break after addition of the drug. 
 
-Below, I include any influence of bursting on YFP appearance by estimating the cumulative incidence of YFP appearance. The cumulative incidence function at time t estimates the marginal probability that event occurs at time less than t.  It is dependent not only on the rate that the event occurs, but on the rate of competing events that prevent the event of interest form occuring. In the case of these experiments, bursting could be a competing event to YFP repair if it is associated with inability to induce double-strand breaks or repair. Under these circumstances, treating bursting as uninformative censoring (as is done with the Kaplan Meier approach) would lead to a misleading underestimation of time-to-YFP-appearance since the burst cells have no chance of ever producing YFP. Cumulative incidence makes more sense because while it makes no assumptions that bursting is uninformative, it still accounts for reductions to the fraction of YFP appearance events due to bursting occuring prior to YFP detection. This makes cumulative incidence a useful way to assess the overall rate of cells going from YFP engative to positive over time. 
+The approach used to account for bursting depends on what bursting means in the context of the YFP detection assay. If increased rates of bursting are due to the inability to repair the induced double-strand break, we want to include burst cells in our measurement of YFP repair outcomes. In this case, treating the burst cells as uninformative censoring (as in Kaplan-Meier), would lead to overestimation of time to YFP appearance. If instead, burst cells are unable to induce double-strand breaks, they should not be included.
+
+Below, I include any influence of bursting on YFP appearance by estimating the cumulative incidence of YFP appearance. The cumulative incidence function at time t estimates the marginal probability that event occurs at time less than t. It is dependent not only on the rate that the event occurs, but on the rate of competing events that prevent the event of interest form occuring. The cumulative incidence approach is useful for this data because it provides a way to assess the overall rate of cells going from YFP negative to positive over time, and is sensitive to any negative association between burstin and inability to repair.  
 
 
 ```{r}
@@ -340,18 +352,18 @@ grid.arrange(grobs = test, layout_matrix = rbind(c(1,2),c(3,4)),top = "Cumulativ
 #                  ylim = c(0,1))
 
 ```
-For all strains, the cumulative incidence of YFP appearance was lower in old cells than it was for young cells. As discussed earlier, the cumulative incidence for YFP appearance includes the influence of bursting events that prevent observation of YFP repair. There is definitely a higher rate of bursting in old cells compared to young cells, so this cannot be ruled out as a reason for the lower cumulative incidence of YFP appearance in old cells. Also, the difference in cumulative incidence curves between young and old cells  do not not necessarily mean that old cells are worse at repair.
+For all strains, the cumulative incidence curves of YFP appearance are lower in old cells than they are for young cells. There are multiple explanations for this result, which include faster DSB induction and repair in young cells, or more bursting in old cells.
 
-In young cells the only strain with a statistically significant difference in its cumulative incidence curve from the SSA strain is the SSAhet strain. This agrees with what is know in the literature about heterology in SSA repair casettes decreasing the rate of repair. All other strains have a similar cumulative incidence curves over time.
+I also compared cumulative incidence curves within each age group for each strain and the SSA strain. In young cells the only strain with a statistically significant difference in its cumulative incidence curve from the SSA strain is the SSAhet strain. This agrees with what is know in the literature about heterology in SSA repair casettes decreasing the rate of repair. All other strains have a similar cumulative incidence curves over time.
 
-In old cells, the cumulative incidence curves plateau at a lower level.  For the SSA strain this is around a level of 0.62. The SSAhet strain again has a cumulative incidence curve that shows a statistically significant difference from the SSA strain. All other curves fail to show a statistically signficant difference. The SSA3xCln2 and SSAdeg cumulative incidences do look like they reach a higher plateau than SSA though.
+In old cells, the cumulative incidence curves plateau at a various lower levels.  For the SSA strain this was around 0.62. The SSAhet strain again has a cumulative incidence curve that shows a statistically significant difference from the SSA strain (p<0.01). All other curves fail to show a statistically signficant difference. The SSA3xCln2 and SSAdeg cumulative incidences do look like they reach a higher plateau than SSA though.
 
-While the cumulative incidence curves don't provide much specific insight into what is happening with SSA repair across strains and between young and old cells, they provide an overall sense of what is happening to cells in the experiments. In the old experiments, fewer cells produce YFP over time than in young cells.  
 
 ### 4. Cause specific hazard modeling of time-to-YFP-appearance using proportional hazards regression.
 
-The cumulative incidence estimates the marginal probability of YFP repair in time < T, while accounting for the competing risk of bursting.  Any interpretation of different cumulative incidence curves with age depends on assumptions about how bursting is related to time to YFP repair. Do bust cells have a different time-to-repair distribution than cells that don't burst? Since we don't know the answer to this question, we now focus only on cells that do not burst. We model the cause specific hazard rate for YFP repair. This is the instantaneous rate of YFP repair in a given time interval for those cells that have not burst and that are YFP negative.  Bursting events are censored.
+Now I take a different approach to understand the time-to-YFP appearance data called cause specific hazards. While cumulative incidence includes the effect of a competing event like bursting, the cause-specific hazard approach focuses on the population of cells that do not burst. The cause specific hazard of YFP repair is the instantaneous rate of YFP repair in a given time interval for those cells that have not burst and that are YFP negative. In taking this approach, I are avoid the ambiguity associated with bursting by ignoring those cells in which it occurs. At the same, any results are more in the scope of cells that they apply to.
 
+I start out by fitting a cox-proportional hazards model that treats bursting as censoring, and that has strain identity and age cohort as covariates. I plot the Schoenfeld residuals against time, and perform chi squared test to determine whether the data is consistent with the proportional hazards assumption
 ```{r}
 library(tidyr)
 library(gtsummary)
@@ -362,19 +374,148 @@ cshr_fit <-
     Surv(timeyfp,statusyfp) ~ expstrain+expage, data=info
   )
 
-gtsummary::tbl_regression(cshr_fit, exp = TRUE)
+mv_fit <- coxph(Surv(timeyfp,statusyfp) ~ expstrain + expage, data=info)
+cz <- cox.zph(mv_fit,terms=FALSE)
+print(cz)
+plot(cz)
+#gtsummary::tbl_regression(cshr_fit, exp = TRUE)
 
 ```
-The above results are for a cox proportional hazards regression using the cause specific hazard approach (treating all bursting events as censoring).  In this case the hazard is with respect to YFP repair. The results are the hazard ratios for each strain (except for SSA) and each age (except for old cells) with respect to old SSA cells.  The significant coefficients are for the SSA3xCln2 strain with a hazard ratio of 1.49, SSAhet strain with a hazard ratio of 0.25, and the youmg coefficient with a hazard ratio of 1.67.  
+The Schoenfeld residual vs time plots suggest the proportional hazards assumption is violated. For example, for 'expageyoung' and 'expstrain3xCln2' the residuals show an initial decreasing trend. 'expstrainSSAhet' shows a later decreasing trend. If the Cox Proportional Hazards assumption holds, the Schoenfeld residuals should show no trends over time.  The chi squared hypothesis tests of the null hypothesis that the Schoenfeld residuals come from a distribution with mean 0, and no autocorrelation, also produced significant p-values (< 0.05) for 'expageyoung' and 'expstrain3xCln2'. If the proportional hazards assumption holds, the null distribution should be accurate.  
 
-Below, I check the Cox proportional hazards assumption that hazards are proportional at each point in time throughout followup. To do this I use the cox.zph function.  It performs a hypothesis test of whether the effect of each covariate differs over time and a global test of all covariates at once. It also plots the Schoenfeld residuals - 'deviation from a zero-slope line is evidence that the proportional hazards assumption is violated
+Because of the violation of model assumptions, we can't use the fitted hazard ratios for inference.
+
+### Revising the model. Changing the population the Cox-PH model is fit to.
+
+I suspect that the violation of the proportional hazards assumption is related to fitting of the cox-model at times where most of each strain as been repaired. My hunch is related to the question of whether the are population consists of non-repairable cells, which I discussed in my introduction
+
+If a sub-population of each cohort consists of non-repairable cells, then at each point in time there will be cells with zero hazard while other cells with the exact same covariates will have non-zero hazard. This subpopulation will be more common among the cells at later time points as the repairable cells get repaired.
+
+To address this issue, I repeat the cause-specific hazard analysis, but remove cells that are unrepaired and observable the 10 hour timepoint. The 10 hour, post drug addition timepoint corresponds to a fluorescent index of 5 + 2*10 = 25. Beyond this timepoint, inspection of the cumulative incidence plots suggests a very small fraction of these cells are repaired. Cells that are censored priot to 10 hours, due to crowding of the field of view or bursting are included as censored. The cause-specific hazard on the revised population is fit below.
+
 ```{r}
-mv_fit <- coxph(Surv(timeyfp,statusyfp) ~ expstrain + expage, data=info)
-cz <- cox.zph(mv_fit)
+#cause specific hazards on strain for old cells
+condition = info$timeyfp <= 25
+
+cshr_fit <-
+  coxph(
+    Surv(timeyfp,statusyfp) ~ expstrain+expage, data=info[condition,]
+  )
+
+#gtsummary::tbl_regression(cshr_fit, exp = TRUE)
+
+mv_fit <- coxph(Surv(timeyfp,statusyfp) ~ expstrain + expage, data=info[condition,])
+cz <- cox.zph(mv_fit,terms=FALSE)
+print(cz)
+plot(cz)
+
+```
+The chi squared goodness of fit on the Schoenfeld residuals is no longer significant (p<0.05) for the 'expageyoung' factor. It is still significant for the 'expstrainSSADnl4ko' and 'expstrainSSA3xCln2' factors.  Inspecting the Schoenfeld residual vs time plots, the SSA_3xCln2 Schoenfeld residuals still show a trend where the initially drop, level off, then fall again. The Schoenfeld residual plot for SSA_Dnl4ko does not show any trends. 
+
+Since the data still doesn't agree with the proportional hazard assumptions, I next consider whether the assumptions hold when I consider strain within each age-group separately. I start off looking at old cells.
+
+
+```{r}
+#cause specific hazards on strain for old cells
+condition = info$timeyfp <=25
+
+cshr_fit <-
+  coxph(
+    Surv(timeyfp,statusyfp) ~ expstrain, data=info[condition & info$expage=='old',]
+  )
+
+gtsummary::tbl_regression(cshr_fit, exp = TRUE)
+
+mv_fit <- coxph(Surv(timeyfp,statusyfp) ~ expstrain, data=info[condition & info$expage=='old',])
+cz <- cox.zph(mv_fit,terms=FALSE)
 print(cz)
 plot(cz)
 ```
-There appears to be an increasing trend in the Schoenfeld residuals for strain with respect to time. There is less of a clear pattern in the Schoenfeld residuals with respect to age.  The hypothesis tests of whether the effect of age and strain on cause-specific hazard change over time also produced significant p-values (< 0.05).  The proportional hazards assumption appears to be violated. The hazard ratios for strain and age listed above are not so trustworthy. 
+Restricting the analysis to old cells, the chi-squared test on Schoenfeld residuals is no longer significant the SSA_3xCln2, and significant for SSA_Dnl4ko, and SSA_deg
+
+Now I apply the Cox Proportional Hazards Model to repaired cells of the young strain
+
+```{r}
+condition = info$timeyfp <=25
+cshr_fit <-
+  coxph(
+    Surv(timeyfp,statusyfp) ~ expstrain, data=info[condition & info$expage=='young'& info$expstrain != 'SSA3xCln2',]
+  )
+
+
+
+mv_fit <- coxph(Surv(timeyfp,statusyfp) ~ expstrain, data=info[condition & info$expage=='young' & info$expstrain != 'SSA3xCln2',])
+cz <- cox.zph(mv_fit,terms=FALSE)
+print(cz)
+plot(cz)
+```
+For young cells, the Schoenfeld residual plots for each strain fail to show any trends, and the corresponding chi-squared tests are not significant. I go ahead and inspect the coefficients of the cause-specific hazard model.
+
+```{r}
+gtsummary::tbl_regression(cshr_fit, exp = TRUE)
+```
+In young cells, the hazard ratio for the strain SSA_Dnl4ko is significant with a p-value of 0.03. The 95% confidence interval of this hazard ratio covered a wide range, from 1.04 to 2.21.  I don't think there is strong evidence that the SSA_Dnl4ko strain has a much higher hazard ratio than the SSA strain
+
+Cox-proportional hazards is not the right way to model strain to strain and age to age differences in time-to-YFP repair. Still, I can compute Kaplan-Meier curves of cause-specific hazard for YFP repair for the repaired cells to get a qualitiative sense of how time-to-repair differs among repaired cells of each group.
+
+```{r}
+#SSAdegcontrol was not measured for the 'young' condition
+#SSA3xCln2 was not measured at every time point in the young cohorts
+strainnames = c('SSA','SSA_Dnl4ko', 'SSAdeg','SSAhet')
+
+eventkmbyagelist = lapply(strainnames,eventkmbyagegrp,info[info$timeyfp<=25,],"timeyfp","statusyfp")
+grid.arrange(grobs = eventkmbyagelist,layout_matrix = rbind(c(1,2,3),c(4,5,6)), top = "Kaplan-Meier Curves for Bursting In Old vs Young Cells of each Strain")
+
+
+pvlist = lapply(strainnames,eventlgrankpv_byagegrp,info[info$timeyfp <=25,],"timeyfp","statusyfp")
+names(pvlist) = strainnames
+print('logrank p-values comparing old and young time-to-burst survival distributions within each strain')
+pvlist
+```
+Comparing time to repair within each strain between young and old cells, young cells repair more quickly in all strains except SSAdeg (logrank p-value = 0.73). However time-to-repair includes time to induction of the double-strand break, so this result could be explained by slower induction of double-strand breaks in old cells.
+
+```{r}
+strainnames = c('SSA_Dnl4ko', 'SSAdeg','SSAhet','SSA3xCln2')
+
+
+yfpkmbyagelist = lapply(strainnames,eventkmbystrain,'SSA','old',info[info$timeyfp<=25,],"timeyfp","statusyfp")
+grid.arrange(grobs = yfpkmbyagelist,layout_matrix = rbind(c(1,2,3),c(4,5,6)),top = 'Kaplan Meier Curves for Bursting (death) by Strain, Old Experiments Only')
+
+pvlist =
+  lapply(strainnames,eventlgrankpv_bystrain,'SSA','old',info[info$timeyfp <=25,],"timeyfp","statusyfp")
+names(pvlist) = strainnames
+print('logrank p-values comparing old time-to-burst survival distributions for each strain against SSA')
+pvlist
+```
+Comparing time-to-repair between old cells of each strain and the SSA strain, the only strains that show a significant difference are SSAhet (longer time-to-yfp, logrank p-value < 0.001 ) and SSA3xCln2(shorter time-to-yfp, logrank p-value 0.02). As before, these results could be explained by different time-to-YFP induction between strains. This is unlikely to be the case since the strain backgrounds are identical.
+
+
+### Conclusion
+
+In this notebook I:
+
+1. Showed there were different levels of censoring due to crowding of the field of view, and bursting across different strains and age cohorts.
+
+2. Showed the the time-to-bursting distribution was significantly different between old and young cells of each strain. I also showed the time-to-bursting distribution was significantly different between old SSA cells, and old SSA_Dnl4ko/SSA_3xCln2 cells.
+
+3. Computed cumulative incidence functions for each strain and age groups. The cumulative incidence plateaus at a lower level in old cells than in young cells.  Between old and young cells of the strain, the differences in cumulative incidence functions are statistically significant.  
+
+4. Used a cox-proportional hazards approach to model cause-specific hazard for YFP-repair.  
+
+-The models were fitted with a hazard ratio for each strain, and age-group  
+
+-The full model containing both strains and 2 age-groups, did not meet the proportional hazards assumption. This was the case even after excluded cells that were still unrepaired 10 hour after induction of the double strand break  
+
+-The model fit on only old cells, with hazard ratios for each strain also did not meet the proportional hazards assumption. In this model, unrepaired cells were excluded prior to model fitting  
+
+-Only the model fit on young cells, with hazard ratios for each strain met the proportional hazards assumption. In this model, unrepaired cells were excluded prior to model fitting.  Although the hazard ratio for SSA-Dnl4ko was significant, the 95% confidence interval came very close to overlapping a hazard ratio of 1.
+
+-Different strains and age-groups still showed different cause-specific hazard curves for time-to-repair when the analysis was restricted to cells repaired within 10 hours of double-strand break induction. For each strain young repaired cells show YFP in less time than old cells. However this could be due to differenced in double-strand break induction speed, and YFP expression.  Among old cells, the SSAhet strain showed slower appearance of YFP than the SSA strain, while the SSA3xCln2 strain showed faster expression.
+
+The inability of the cause-specific hazard fits to meet the proportional hazards assumption means that other approaches are necessary to model the effect the effect of strain and age on time-to-repair of YFP. In the future, I would explore using other covariates as input to the cox-proportional hazards model. Cell division time prior to induction of double-strand breaks is one promising covariate because of the relationship between cell-cycle and ability to carry out SSA repair. Another approach would be to try parametric models like the accelerated failure time model.
+
+
+
 
 
 
